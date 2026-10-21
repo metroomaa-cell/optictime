@@ -27,3 +27,8 @@ npm start
 ```
 
 The backend stores mutable catalog and order data under `admin/server/data`. Uploads, persistent database files, credentials, and the private Android APK are intentionally excluded from Git; keep backups of those separately.
+
+## Admin app release
+
+The admin APK is available at dmin/releases/ShakilEcom-2.4.4.apk (version 2.4.4). This repository is public, so anyone can download it. SHA-256: 9457aeb21690488154273e4f82dee3262ee26eea3620f24d5bd634cc6402aeff.
+

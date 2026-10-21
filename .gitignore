@@ -8,3 +8,5 @@ admin/server/data/
 admin/server/uploads/
 admin/uploads/
 *.apk
+
+!admin/releases/ShakilEcom-2.4.4.apk
