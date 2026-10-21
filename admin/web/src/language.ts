@@ -120,7 +120,7 @@ const BN: Record<string, string> = {
   'Be the First to Experience New Collections': 'নতুন কালেকশন সবার আগে দেখুন', 'Enter your mobile number or email': 'মোবাইল নম্বর বা ইমেইল লিখুন',
   'Join Now →': 'এখনই যুক্ত হোন →', 'Quantity:': 'পরিমাণ:',
   'EXCLUSIVE COLLECTION': 'বিশেষ কালেকশন', 'Size:': 'সাইজ:', 'Select size': 'সাইজ বাছাই করুন',
-  'SOLD OUT': 'স্টক শেষ', 'ADDED TO BAG ✓': 'ব্যাগে যোগ হয়েছে ✓', 'ADD TO CART': 'ব্যাগে যোগ করুন',
+  'SOLD OUT': 'স্টক শেষ', 'ADDED TO BAG ✓': 'ব্যাগে যোগ হয়েছে ✓',
   'Customer Review': 'ক্রেতার মতামত', 'Customer Reviews': 'ক্রেতাদের মতামত', '🌿 100% Authentic Botanical': '🌿 ১০০% খাঁটি বোটানিক্যাল উপাদান',
   '✨ Verified Authentic Item': '✨ অরিজিনাল পণ্য', 'Sold Out': 'স্টক শেষ', 'In Stock': 'স্টকে আছে',
   'Instant Digital Product · 100% Free Instant Delivery (৳0 Courier Fee)': 'তাৎক্ষণিক ডিজিটাল পণ্য · ফ্রি ডেলিভারি (কুরিয়ার চার্জ ৳০)',

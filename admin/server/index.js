@@ -342,7 +342,11 @@ app.delete('/api/colors/:id', (req, res) => {
   res.json({ success: true, colors: next });
 });
 
-app.get('/api/settings', (_req, res) => res.json(getSettings()));
+app.get('/api/settings', (_req, res) => {
+  const publicSettings = { ...getSettings() };
+  delete publicSettings.ownerPassword;
+  res.json(publicSettings);
+});
 app.put('/api/settings', adminAuth, requireRole('owner', 'manager'), (req, res) => {
   const b = req.body || {};
   const num = (v, d) => { const n = parseInt(v, 10); return isNaN(n) ? d : Math.max(0, n); };
@@ -1337,6 +1341,12 @@ app.put('/api/admin/security-email', adminAuth, requireRole('owner'), (req, res)
 });
 
 app.get('/api/admin/me', adminAuth, (req, res) => res.json(req.admin));
+
+app.post('/api/admin/logout', adminAuth, (req, res) => {
+  const token = req.get('x-admin-token') || '';
+  sessions.delete(token);
+  res.json({ ok: true });
+});
 
 app.get('/api/admin/users', adminAuth, requireRole('owner'), (_q, res) => res.json(getUsers().map((u) => ({ id: u.id, username: u.username, name: u.name, email: u.email || '', role: u.role, skipOtp: !!u.skipOtp, allowedProducts: Array.isArray(u.allowedProducts) ? u.allowedProducts : [] }))));
 
@@ -4322,33 +4332,36 @@ app.get('/api/admin/customers', adminAuth, (req, res) => {
   res.json({ customers: enriched });
 });
 
-// ---- serve built frontend in production ----
+// ---- serve Optictime storefront and protected admin SPA in production ----
 const dist = join(__dir, '..', 'web', 'dist');
+const storefrontRoot = join(__dir, '..', '..');
 // Retire the former customer-facing APK URL explicitly, before SPA fallback.
 app.get(['/shakilecom', '/shakilecom/*'], (_req, res) => res.status(404).json({ error: 'Not found' }));
 if (existsSync(dist)) {
   app.get(['/admin.html', '/admin'], (_req, res) => res.redirect(301, '/wp-admin'));
-  app.use(express.static(dist, {
+  app.get(['/wp-admin', '/wp-admin/*'], (_req, res) => {
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.sendFile(join(dist, 'index.html'));
+  });
+  app.use('/admin-assets', express.static(dist, {
     setHeaders: (res, path) => {
-      if (path.endsWith('.html')) {
-        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-        res.setHeader('Pragma', 'no-cache');
-        res.setHeader('Expires', '0');
-      } else if (path.includes('/assets/') || path.includes('\\assets\\')) {
+      if (path.includes('/assets/') || path.includes('\\assets\\')) {
         res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
       }
     }
   }));
+  app.use('/assets', express.static(join(storefrontRoot, 'assets'), { maxAge: '1y', immutable: true }));
+  app.use('/api', (_req, res) => res.status(404).json({ error: 'API route not found' }));
   app.get('*', (req, res) => {
     res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
     res.setHeader('Pragma', 'no-cache');
     res.setHeader('Expires', '0');
-    const indexPath = join(dist, 'index.html');
+    const indexPath = join(storefrontRoot, 'index.html');
     if (!existsSync(indexPath)) return res.status(404).send('Not found');
 
     try {
       let html = readFileSync(indexPath, 'utf8');
-      const baseUrl = 'https://metrroma.com';
+      const baseUrl = String(process.env.PUBLIC_SITE_URL || `${req.protocol}://${req.get('host')}`).replace(/\\/$/, '');
       const path = req.path || '/';
 
       const cleanPath = path.replace(/^\/+|\/+$/g, '');
@@ -4365,7 +4378,7 @@ if (existsSync(dist)) {
       }
 
       if (targetProduct) {
-        const pTitle = `${targetProduct.name} — METRROMA`;
+        const pTitle = `${targetProduct.name} — ${getSettings().storeName || 'Optictime'}`;
         const pDesc = (targetProduct.desc || targetProduct.shortDesc || targetProduct.name).slice(0, 200).replace(/["\n\r]/g, ' ');
         let pImg = targetProduct.image || (targetProduct.images && targetProduct.images[0]) || '/uploads/img_mvdpqsl1t81m6.webp';
         if (!pImg.startsWith('http')) pImg = `${baseUrl}${pImg.startsWith('/') ? '' : '/'}${pImg}`;

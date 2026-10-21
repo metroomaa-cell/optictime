@@ -19,6 +19,7 @@ async function aFetch(path: string, opts: any = {}) {
   });
   if (res.status === 401 && !path.includes('/login')) {
     localStorage.removeItem(KEY);
+    localStorage.removeItem('dot_admin_exp');
     window.dispatchEvent(new Event('admin-logout'));
   }
   return res;
@@ -785,7 +786,8 @@ const I = {
 };
 
 export function Admin() {
-  const [authed, setAuthed] = useState(() => !!getTok());
+  const [authed, setAuthed] = useState(false);
+  const [authChecking, setAuthChecking] = useState(() => !!getTok());
   const [nav, setNav] = useState('dashboard');
   const [store, setStore] = useState('dot.');
   const [me, setMe] = useState<any>(null);
@@ -798,6 +800,31 @@ export function Admin() {
     const onLogout = () => { setAuthed(false); setMe(null); };
     window.addEventListener('admin-logout', onLogout);
     return () => window.removeEventListener('admin-logout', onLogout);
+  }, []);
+  useEffect(() => {
+    if (!getTok()) {
+      setAuthChecking(false);
+      return;
+    }
+    let cancelled = false;
+    aFetch('/admin/me').then(async (res) => {
+      if (cancelled) return;
+      if (!res.ok) {
+        localStorage.removeItem(KEY);
+        localStorage.removeItem('dot_admin_exp');
+        setAuthChecking(false);
+        return;
+      }
+      const user = await res.json();
+      if (!cancelled) {
+        setMe(user);
+        setAuthed(true);
+        setAuthChecking(false);
+      }
+    }).catch(() => {
+      if (!cancelled) setAuthChecking(false);
+    });
+    return () => { cancelled = true; };
   }, []);
   useEffect(() => {
     if (!authed) return;
@@ -819,6 +846,7 @@ export function Admin() {
     return () => clearInterval(t);
   }, [authed]);
   useEffect(() => { if (!authed) return; if (nav === 'orders' && orderTotal != null) { setLastSeen(orderTotal); document.title = 'dot. admin'; } }, [nav, orderTotal, authed]);
+  if (authChecking) return <div className="sa-login"><div className="sa-login-card">Checking secure session…</div></div>;
   if (!authed) return <Login onDone={() => setAuthed(true)} />;
   const role = me?.role || 'owner';
   const allowed = role === 'staff' ? ['dashboard', 'orders', 'scanner', 'customers']

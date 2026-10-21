@@ -1,1 +1,1 @@
-{"name":"shakil-admin-local","private":true,"type":"module","scripts":{"start":"node --env-file=.env server/index.js"},"dependencies":{"cors":"^2.8.5","express":"^4.21.2","nodemailer":"^6.10.1"}}
+{"name":"shakil-admin-local","private":true,"type":"module","engines":{"node":">=20"},"scripts":{"build":"npm --prefix web ci && npm --prefix web run build","start":"node --env-file-if-exists=.env server/index.js"},"dependencies":{"cors":"^2.8.5","express":"^4.21.2","nodemailer":"^6.10.1"}}
