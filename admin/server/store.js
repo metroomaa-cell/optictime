@@ -6,7 +6,7 @@ import { homedir } from 'node:os';
 const __dir = dirname(fileURLToPath(import.meta.url));
 const DATA_DIR = join(__dir, 'data');
 const PERSISTENT_DIR = join(DATA_DIR, 'persistent');
-const BACKUPS_DIR = join(DATA_DIR, 'backups');
+const LEGACY_BACKUPS_DIR = join(DATA_DIR, 'backups');
 
 // External safe storage sitting completely outside the git repository (Hostinger protected space)
 let EXTERNAL_DIR = process.env.PERSISTENT_DATA_DIR;
@@ -33,11 +33,51 @@ if (!EXTERNAL_DIR) EXTERNAL_DIR = join(DATA_DIR, 'persistent');
 // Share the same per-site persistent location with server-side auth storage.
 // Session tokens are stored only as hashes by index.js.
 export const PERSISTENT_DATA_DIR = EXTERNAL_DIR;
+const BACKUPS_DIR = join(PERSISTENT_DATA_DIR, 'backups');
+
+function copyMissingTree(sourceDir, targetDir) {
+  if (!existsSync(sourceDir) || !statSync(sourceDir).isDirectory()) return 0;
+  let copied = 0;
+  mkdirSync(targetDir, { recursive: true });
+  for (const entry of readdirSync(sourceDir, { withFileTypes: true })) {
+    if (entry.isSymbolicLink()) continue;
+    const source = join(sourceDir, entry.name);
+    const target = join(targetDir, entry.name);
+    if (entry.isDirectory()) copied += copyMissingTree(source, target);
+    else if (entry.isFile() && !existsSync(target)) {
+      try { copyFileSync(source, target); copied += 1; } catch (_) {}
+    }
+  }
+  return copied;
+}
 
 if (!existsSync(DATA_DIR)) mkdirSync(DATA_DIR, { recursive: true });
 if (!existsSync(PERSISTENT_DIR)) mkdirSync(PERSISTENT_DIR, { recursive: true });
 if (!existsSync(BACKUPS_DIR)) mkdirSync(BACKUPS_DIR, { recursive: true });
 try { if (!existsSync(EXTERNAL_DIR)) mkdirSync(EXTERNAL_DIR, { recursive: true }); } catch (_) {}
+copyMissingTree(LEGACY_BACKUPS_DIR, BACKUPS_DIR);
+if (process.platform !== 'win32') {
+  const migrationMarker = join(PERSISTENT_DATA_DIR, '.hostinger-backups-migrated-v1');
+  const versionsDir = join(homedir(), 'domains', 'optictime.shop', 'builds', 'versions');
+  if (!existsSync(migrationMarker)) {
+    try {
+      const versions = readdirSync(versionsDir, { withFileTypes: true }).filter((entry) => entry.isDirectory())
+        .map((entry) => ({ name: entry.name, mtime: statSync(join(versionsDir, entry.name)).mtimeMs }))
+        .sort((a, b) => b.mtime - a.mtime);
+      let copied = 0;
+      for (const version of versions) {
+        const root = join(versionsDir, version.name);
+        for (const legacy of [join(root, 'admin', 'server', 'data', 'backups'), join(root, 'server', 'data', 'backups'), join(root, 'data', 'backups')]) {
+          copied += copyMissingTree(legacy, BACKUPS_DIR);
+        }
+      }
+      if (copied) {
+        writeFileSync(migrationMarker, new Date().toISOString(), { mode: 0o600 });
+        console.log(`[Store] Migrated ${copied} legacy backup file(s) into persistent storage.`);
+      }
+    } catch (error) { console.error('[Store] Legacy backup migration failed:', error.message); }
+  }
+}
 console.log('[Store] Isolated external database locked at:', EXTERNAL_DIR);
 
 // Primary file paths
