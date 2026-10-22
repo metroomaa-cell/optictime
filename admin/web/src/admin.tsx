@@ -3095,6 +3095,7 @@ function OrdersAdmin() {
                 </div>
                 <div style={{ marginTop: 2 }}>
                   <OriginBadge source={o.source} style={{ fontSize: 10, padding: '2px 6px' }} />
+                  <div className="traffic-attribution">Channel · {o.attribution?.channel || 'Untracked'}{o.attribution?.medium ? ` / ${o.attribution.medium}` : ''}</div>
                 </div>
               </div>
 
@@ -4209,6 +4210,9 @@ function OrderDrawer({ o, orders, onClose, onSaved }: { o: any; orders?: any[]; 
                 <span className="sa-om-k">Origin / Source</span>
                 <span className="sa-om-v"><span className="sa-tag-source">🌐 {originLabel(o.source)}</span></span>
               </div>
+              <div className="sa-om-kv"><span className="sa-om-k">Marketing channel</span><span className="sa-om-v">{o.attribution?.channel || 'Untracked'}{o.attribution?.medium ? ` · ${o.attribution.medium}` : ''}</span></div>
+              {o.attribution?.campaign && <div className="sa-om-kv"><span className="sa-om-k">Campaign</span><span className="sa-om-v">{o.attribution.campaign}</span></div>}
+              {o.attribution?.referrer && <div className="sa-om-kv"><span className="sa-om-k">Referrer</span><span className="sa-om-v">{o.attribution.referrer}</span></div>}
               <div className="sa-om-kv">
                 <span className="sa-om-k">Customer Note</span>
                 {isEditing ? (
