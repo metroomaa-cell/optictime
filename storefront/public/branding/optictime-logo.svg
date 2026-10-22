@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="560" height="128" viewBox="0 0 560 128" fill="none">
+  <defs>
+    <linearGradient id="gold" x1="18" y1="10" x2="106" y2="116" gradientUnits="userSpaceOnUse"><stop stop-color="#F3D99B"/><stop offset=".52" stop-color="#C7A35E"/><stop offset="1" stop-color="#8F6C34"/></linearGradient>
+    <linearGradient id="ink" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#24322D"/><stop offset="1" stop-color="#101713"/></linearGradient>
+  </defs>
+  <g transform="translate(4 4)">
+    <rect x="43" y="0" width="22" height="20" rx="7" fill="url(#gold)"/><rect x="43" y="100" width="22" height="20" rx="7" fill="url(#gold)"/>
+    <circle cx="54" cy="60" r="48" fill="url(#ink)" stroke="url(#gold)" stroke-width="4"/><circle cx="54" cy="60" r="39" stroke="#E9D49E" stroke-opacity=".72"/>
+    <circle cx="54" cy="60" r="3.5" fill="#F5E5B9"/><path d="M54 60V30M54 60l21 15" stroke="#F5E5B9" stroke-width="3.5" stroke-linecap="round"/>
+    <path d="M54 24v5M54 91v5M18 60h5M85 60h5" stroke="#C6A15D" stroke-width="2" stroke-linecap="round"/>
+    <path d="M31 39a31 31 0 0 1 45-6" stroke="#fff" stroke-opacity=".3" stroke-width="2" stroke-linecap="round"/>
+  </g>
+  <text x="132" y="68" fill="#17211C" font-family="Georgia, 'Times New Roman', serif" font-size="43" font-weight="700" letter-spacing="2.2">OPTIC TIME</text>
+  <text x="135" y="96" fill="#8B744B" font-family="Arial, sans-serif" font-size="12" font-weight="700" letter-spacing="4.1">TIME, IN FOCUS</text>
+</svg>

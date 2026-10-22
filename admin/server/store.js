@@ -116,18 +116,18 @@ export const DEFAULT_COLORS = [
 ];
 
 export const DEFAULT_SETTINGS = {
-  storeName: 'SHAKIL ECOM',
-  announce: '🌿 PURE BOTANICAL SKINCARE · 100% AUTHENTIC DERMATOLOGICALLY CRAFTED · CASH ON DELIVERY NATIONWIDE',
+  storeName: 'Optic Time Shop',
+  announce: 'PREMIUM WATCHES & ACCESSORIES · CASH ON DELIVERY ACROSS BANGLADESH',
   deliveryInside: 80,
   deliveryOutside: 130,
   freeShipThreshold: 2500,
   lowStockAt: 5,
-  whatsapp: '8801878374762',
-  phone: '8801878374762',
-  gtmId: 'GTM-KFFN69B8',
-  fbPixelId: '848875214054132',
-  logo: '/uploads/logo_secrate.png',
-  favicon: '/uploads/favicon_32.png',
+  whatsapp: '',
+  phone: '',
+  gtmId: '',
+  fbPixelId: '',
+  logo: '/branding/optictime-logo.svg',
+  favicon: '/branding/optictime-icon.svg',
   sliders: [],
   fraudDetector: {
     enabled: true,
@@ -208,7 +208,23 @@ function writeSafe(extPath, persistentPath, stdPath, val, backupPrefix = null, b
 export function getSettings() {
   const base = { ...DEFAULT_SETTINGS };
   const saved = readSafe(EXT_SETTINGS, PERSISTENT_SETTINGS, SETTINGS, {}, BACKUP_SETTINGS);
-  return { ...base, ...saved };
+  const settings = { ...base, ...saved };
+  const savedName = String(saved.storeName || '').trim();
+  const savedAnnouncement = String(saved.announce || '');
+  const foreignName = /^(?:shakil\s*ecom|secrate|metr(?:r)?oma|royalman)$/i.test(savedName)
+    && savedName.toLowerCase() !== String(base.storeName).toLowerCase();
+  const foreignAnnouncement = /skincare|botanical/i.test(savedAnnouncement);
+
+  // This codebase is deployed to separate stores. Never let an old shared
+  // settings snapshot leak another store's name, contact details, or tracking IDs.
+  if (foreignName || foreignAnnouncement) {
+    for (const key of [
+      'storeName', 'announce', 'logo', 'favicon', 'phone', 'whatsapp',
+      'gtmId', 'fbPixelId', 'storeAddress', 'storeEmail', 'businessHours',
+      'facebookUrl', 'instagramUrl', 'tiktokUrl', 'youtubeUrl',
+    ]) settings[key] = base[key] ?? '';
+  }
+  return settings;
 }
 
 export function saveSettings(patch) {
@@ -517,20 +533,26 @@ export function saveUsers(u) {
 }
 
 export const DEFAULT_INTEGRATIONS = {
-  email: { enabled: false, provider: 'resend', resendApiKey: '', adminEmail: 'admin@shakilecom.local', host: '', port: 587, secure: false, user: '', pass: '', fromName: 'SHAKIL ECOM', fromEmail: 'admin@shakilecom.local' },
-  sms: { enabled: false, url: '', method: 'GET', senderId: '', apiKey: '', templatePlaced: 'METRROMA: order {id} received. total {total}. we will call to confirm. track: {track}', templateStatus: 'METRROMA: order {id} is now {status}. {courier}' },
+  email: { enabled: false, provider: 'resend', resendApiKey: '', adminEmail: '', host: '', port: 587, secure: false, user: '', pass: '', fromName: 'Optic Time Shop', fromEmail: '' },
+  sms: { enabled: false, url: '', method: 'GET', senderId: '', apiKey: '', templatePlaced: 'Optic Time Shop: order {id} received. Total {total}. We will call to confirm. Track: {track}', templateStatus: 'Optic Time Shop: order {id} is now {status}. {courier}' },
   couriers: [],
-  tracking: { fbEnabled: false, fbPixelId: '1122829254194671', fbToken: '', fbTestCode: '', ttkEnabled: false, ttkPixelId: '', ttkToken: '' },
+  tracking: { fbEnabled: false, fbPixelId: '', fbToken: '', fbTestCode: '', ttkEnabled: false, ttkPixelId: '', ttkToken: '' },
   fraud: { enabled: false, url: '', method: 'GET', headers: '', totalPath: '', successPath: '', cancelPath: '' },
 };
 
 export function getIntegrations() {
   const saved = readSafe(EXT_INTEGRATIONS, PERSISTENT_INTEGRATIONS, INTEGRATIONS, {}, BACKUP_INTEGRATIONS);
+  const email = { ...DEFAULT_INTEGRATIONS.email, ...(saved.email || {}) };
+  const sms = { ...DEFAULT_INTEGRATIONS.sms, ...(saved.sms || {}) };
+  const tracking = { ...DEFAULT_INTEGRATIONS.tracking, ...(saved.tracking || {}) };
+  if (/shakil\s*ecom/i.test(`${email.fromName} ${email.adminEmail} ${email.fromEmail}`)) Object.assign(email, DEFAULT_INTEGRATIONS.email);
+  if (/metr(?:r)?oma|secrate|shakil\s*ecom/i.test(`${sms.templatePlaced} ${sms.templateStatus}`)) Object.assign(sms, DEFAULT_INTEGRATIONS.sms);
+  if (tracking.fbPixelId === '1122829254194671' || /secrate|shakil/i.test(`${tracking.fbToken} ${tracking.ttkToken}`)) Object.assign(tracking, DEFAULT_INTEGRATIONS.tracking);
   return {
-    email: { ...DEFAULT_INTEGRATIONS.email, ...(saved.email || {}) },
-    sms: { ...DEFAULT_INTEGRATIONS.sms, ...(saved.sms || {}) },
+    email,
+    sms,
     couriers: Array.isArray(saved.couriers) ? saved.couriers : [],
-    tracking: { ...DEFAULT_INTEGRATIONS.tracking, ...(saved.tracking || {}) },
+    tracking,
     fraud: { ...DEFAULT_INTEGRATIONS.fraud, ...(saved.fraud || {}) },
   };
 }

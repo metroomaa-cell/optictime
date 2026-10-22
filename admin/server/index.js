@@ -1630,13 +1630,20 @@ app.post('/api/app-apk', adminAuth, requireRole('owner', 'manager'), express.raw
 
 app.post('/api/upload', adminAuth, requireRole('owner', 'manager'), (req, res) => {
   const dataUrl = req.body?.dataUrl || req.body?.image || '';
-  const m = dataUrl.match(/^data:(?:image\/(png|jpe?g|webp|gif|avif|x-icon|vnd\.microsoft\.icon));base64,(.+)$/i);
+  const m = dataUrl.match(/^data:(?:image\/(png|jpe?g|webp|gif|avif|x-icon|vnd\.microsoft\.icon|svg\+xml));base64,(.+)$/i);
   if (!m) return res.status(400).json({ error: 'invalid image' });
   let ext = m[1].toLowerCase();
   if (ext === 'jpeg') ext = 'jpg';
   else if (ext.includes('icon')) ext = 'ico';
+  else if (ext === 'svg+xml') ext = 'svg';
   const buf = Buffer.from(m[2], 'base64');
   if (buf.length > 6 * 1024 * 1024) return res.status(400).json({ error: 'image too large (max 6MB)' });
+  if (ext === 'svg') {
+    const svg = buf.toString('utf8');
+    if (!/^\s*(?:<\?xml[^>]*>\s*)?<svg\b/i.test(svg) || /<script\b|<foreignObject\b|<iframe\b|<object\b|<embed\b|\bon[a-z]+\s*=|javascript:|<!DOCTYPE|<!ENTITY|url\(\s*['"]?(?:https?:|\/\/|data:)|(?:href|xlink:href)\s*=\s*['"](?:https?:|\/\/|javascript:|data:)/i.test(svg)) {
+      return res.status(400).json({ error: 'SVG contains unsupported active or external content.' });
+    }
+  }
 
   // Deduplicate: check if identical image content already exists on disk
   try {
@@ -4340,6 +4347,9 @@ const repositoryRoot = join(__dir, '..', '..');
 const storefrontRoot = existsSync(join(repositoryRoot, 'index.html'))
   ? repositoryRoot
   : join(__dir, '..');
+const brandingRoot = existsSync(join(__dir, '..', 'branding'))
+  ? join(__dir, '..', 'branding')
+  : join(repositoryRoot, 'storefront', 'public', 'branding');
 // Retire the former customer-facing APK URL explicitly, before SPA fallback.
 app.get(['/shakilecom', '/shakilecom/*'], (_req, res) => res.status(404).json({ error: 'Not found' }));
 if (existsSync(dist)) {
@@ -4356,6 +4366,7 @@ if (existsSync(dist)) {
     }
   }));
   app.use('/assets', express.static(join(storefrontRoot, 'assets'), { maxAge: '1y', immutable: true }));
+  app.use('/branding', express.static(brandingRoot, { maxAge: '1y', immutable: true, fallthrough: false }));
   app.use('/api', (_req, res) => res.status(404).json({ error: 'API route not found' }));
   app.get('*', (req, res) => {
     res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
