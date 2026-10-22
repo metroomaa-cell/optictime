@@ -4361,7 +4361,7 @@ if (existsSync(dist)) {
 
     try {
       let html = readFileSync(indexPath, 'utf8');
-      const baseUrl = String(process.env.PUBLIC_SITE_URL || `${req.protocol}://${req.get('host')}`).replace(/\\/$/, '');
+      const baseUrl = String(process.env.PUBLIC_SITE_URL || `${req.protocol}://${req.get('host')}`).replace(/\/$/, '');
       const path = req.path || '/';
 
       const cleanPath = path.replace(/^\/+|\/+$/g, '');
