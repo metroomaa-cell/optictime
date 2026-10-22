@@ -4,6 +4,8 @@ node_modules/
 .env.*
 !.env.example
 **/dist/
+/admin/index.html
+/admin/assets/
 admin/server/data/
 admin/server/uploads/
 admin/uploads/

@@ -4334,7 +4334,12 @@ app.get('/api/admin/customers', adminAuth, (req, res) => {
 
 // ---- serve Optictime storefront and protected admin SPA in production ----
 const dist = join(__dir, '..', 'web', 'dist');
-const storefrontRoot = join(__dir, '..', '..');
+const repositoryRoot = join(__dir, '..', '..');
+// Hostinger deploys the `admin` directory by itself. The build copies the
+// storefront index/assets there; local development can still use the repo root.
+const storefrontRoot = existsSync(join(repositoryRoot, 'index.html'))
+  ? repositoryRoot
+  : join(__dir, '..');
 // Retire the former customer-facing APK URL explicitly, before SPA fallback.
 app.get(['/shakilecom', '/shakilecom/*'], (_req, res) => res.status(404).json({ error: 'Not found' }));
 if (existsSync(dist)) {
