@@ -30,6 +30,9 @@ if (!EXTERNAL_DIR) {
   }
 }
 if (!EXTERNAL_DIR) EXTERNAL_DIR = join(DATA_DIR, 'persistent');
+// Share the same per-site persistent location with server-side auth storage.
+// Session tokens are stored only as hashes by index.js.
+export const PERSISTENT_DATA_DIR = EXTERNAL_DIR;
 
 if (!existsSync(DATA_DIR)) mkdirSync(DATA_DIR, { recursive: true });
 if (!existsSync(PERSISTENT_DIR)) mkdirSync(PERSISTENT_DIR, { recursive: true });

@@ -1,6 +1,6 @@
 import express from 'express';
 import cors from 'cors';
-import { existsSync, mkdirSync, writeFileSync, readFileSync, readdirSync, statSync, unlinkSync } from 'node:fs';
+import { existsSync, mkdirSync, writeFileSync, readFileSync, readdirSync, statSync, unlinkSync, renameSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { randomUUID, randomBytes, scryptSync, timingSafeEqual, createHash } from 'node:crypto';
@@ -9,7 +9,7 @@ import http from 'node:http';
 import https from 'node:https';
 import dns from 'node:dns';
 try { dns.setDefaultResultOrder('ipv4first'); } catch {}
-import { getCatalog, getOrders, addOrder, updateOrder, deleteOrder, addProduct, updateProduct, deleteProduct, getSettings, saveSettings, saveCatalog, addCategory, updateCategory, deleteCategory, getCoupons, saveCoupons, getReviews, saveReviews, getUsers, saveUsers, getIntegrations, saveIntegrations, getLandings, saveLandings, getLandingBySlug, addLanding, updateLanding, deleteLanding, getColors, addColor, deleteColor, getCustomers, saveCustomers, getCustomerByPhone, saveCustomer, syncCustomersFromOrders, initStorageProtection } from './store.js';
+import { getCatalog, getOrders, addOrder, updateOrder, deleteOrder, addProduct, updateProduct, deleteProduct, getSettings, saveSettings, saveCatalog, addCategory, updateCategory, deleteCategory, getCoupons, saveCoupons, getReviews, saveReviews, getUsers, saveUsers, getIntegrations, saveIntegrations, getLandings, saveLandings, getLandingBySlug, addLanding, updateLanding, deleteLanding, getColors, addColor, deleteColor, getCustomers, saveCustomers, getCustomerByPhone, saveCustomer, syncCustomersFromOrders, initStorageProtection, PERSISTENT_DATA_DIR } from './store.js';
 import { getWhatsAppSettings, saveWhatsAppSettings, sendWhatsAppNotification, formatWhatsAppMessage } from './whatsapp_engine.js';
 import { startWhatsAppSocket, getWhatsAppLiveStatus, requestPairingCode, sendBaileysMessage } from './whatsapp_baileys.js';
 
@@ -840,10 +840,53 @@ app.get('/api/track', async (req, res) => {
 });
 
 // ---- admin auth: owner master key + staff accounts with roles ----
-const SESSION_TTL_MS = 72 * 60 * 60 * 1000; // 72 hours auto-logout
-const sessions = new Map(); // token -> { role, name, username, email, expiresAt }
+const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days; survives Node process restarts
+const ADMIN_SESSIONS_FILE = join(PERSISTENT_DATA_DIR, 'admin_sessions.json');
+const sessions = new Map(); // SHA-256 token hash -> { role, name, username, email, expiresAt }
 const pendingOtps = new Map(); // tempToken -> { username, role, name, otp, email, expiresAt }
 const pendingPasswordResets = new Map(); // resetToken -> { username, email, otp, expiresAt }
+
+function sessionKey(token) {
+  return createHash('sha256').update(String(token || '')).digest('hex');
+}
+
+function persistAdminSessions() {
+  const tempFile = `${ADMIN_SESSIONS_FILE}.${process.pid}.tmp`;
+  try {
+    mkdirSync(PERSISTENT_DATA_DIR, { recursive: true });
+    writeFileSync(tempFile, JSON.stringify(Object.fromEntries(sessions)), { mode: 0o600 });
+    renameSync(tempFile, ADMIN_SESSIONS_FILE);
+    return true;
+  } catch (error) {
+    try { if (existsSync(tempFile)) unlinkSync(tempFile); } catch (_) {}
+    console.error('[Auth] Could not persist admin sessions:', error.message);
+    return false;
+  }
+}
+
+function loadAdminSessions() {
+  try {
+    if (!existsSync(ADMIN_SESSIONS_FILE)) return;
+    const saved = JSON.parse(readFileSync(ADMIN_SESSIONS_FILE, 'utf8'));
+    if (!saved || typeof saved !== 'object' || Array.isArray(saved)) return;
+    let changed = false;
+    for (const [hash, session] of Object.entries(saved)) {
+      if (!/^[a-f0-9]{64}$/i.test(hash) || !session || typeof session !== 'object' || !Number.isFinite(Number(session.expiresAt))) {
+        changed = true;
+        continue;
+      }
+      if (Number(session.expiresAt) <= Date.now()) {
+        changed = true;
+        continue;
+      }
+      sessions.set(hash, session);
+    }
+    if (changed) persistAdminSessions();
+    console.log(`[Auth] Restored ${sessions.size} persistent admin session(s).`);
+  } catch (error) {
+    console.error('[Auth] Could not load persisted admin sessions:', error.message);
+  }
+}
 
 const hashPw = (pw, salt) => scryptSync(pw, salt, 32).toString('hex');
 const makeHash = (pw) => { const salt = randomBytes(8).toString('hex'); return { salt, hash: hashPw(pw, salt) }; };
@@ -873,7 +916,8 @@ function maskEmail(em) {
 function resolveAuth(req) {
   const token = req.get('x-admin-token') || '';
   if (!token) return null;
-  const session = sessions.get(token);
+  const key = sessionKey(token);
+  const session = sessions.get(key);
   if (!session) {
     const masterToken = process.env.ADMIN_TOKEN || '';
     if (masterToken && token === masterToken) {
@@ -882,7 +926,8 @@ function resolveAuth(req) {
     return null;
   }
   if (session.expiresAt && Date.now() > session.expiresAt) {
-    sessions.delete(token); // 48-hour session expired!
+    sessions.delete(key);
+    persistAdminSessions();
     return null;
   }
   return session;
@@ -894,6 +939,7 @@ function adminAuth(req, res, next) {
   req.admin = auth;
   next();
 }
+loadAdminSessions();
 function requireRole(...roles) {
   return (req, res, next) => { if (!req.admin || !roles.includes(req.admin.role)) return res.status(403).json({ error: 'your role cannot do this' }); next(); };
 }
@@ -1132,7 +1178,11 @@ app.post('/api/admin/login', async (req, res) => {
   // Fallback: direct 72-hour session if email is disabled or skipOtp is enabled
   const token = 's_' + randomBytes(24).toString('hex');
   const expiresAt = Date.now() + SESSION_TTL_MS;
-  sessions.set(token, { role: user.role, name: user.name, username: user.username, email: user.email || getOwnerEmail(), allowedProducts: Array.isArray(user.allowedProducts) ? user.allowedProducts : [], expiresAt });
+  sessions.set(sessionKey(token), { role: user.role, name: user.name, username: user.username, email: user.email || getOwnerEmail(), allowedProducts: Array.isArray(user.allowedProducts) ? user.allowedProducts : [], expiresAt });
+  if (!persistAdminSessions()) {
+    sessions.delete(sessionKey(token));
+    return res.status(503).json({ error: 'Secure session storage is unavailable. Please contact the store administrator.' });
+  }
   res.json({ token, role: user.role, name: user.name, expiresAt });
 });
 
@@ -1158,7 +1208,7 @@ app.post('/api/admin/verify-otp', (req, res) => {
   // Valid OTP! Issue 72-hour session
   const token = 's_' + randomBytes(24).toString('hex');
   const expiresAt = Date.now() + SESSION_TTL_MS;
-  sessions.set(token, {
+  sessions.set(sessionKey(token), {
     role: pending.role,
     name: pending.name,
     username: pending.username,
@@ -1166,6 +1216,10 @@ app.post('/api/admin/verify-otp', (req, res) => {
     allowedProducts: Array.isArray(pending.allowedProducts) ? pending.allowedProducts : [],
     expiresAt
   });
+  if (!persistAdminSessions()) {
+    sessions.delete(sessionKey(token));
+    return res.status(503).json({ error: 'Secure session storage is unavailable. Please contact the store administrator.' });
+  }
   pendingOtps.delete(tempToken);
 
   res.json({
@@ -1344,7 +1398,8 @@ app.get('/api/admin/me', adminAuth, (req, res) => res.json(req.admin));
 
 app.post('/api/admin/logout', adminAuth, (req, res) => {
   const token = req.get('x-admin-token') || '';
-  sessions.delete(token);
+  sessions.delete(sessionKey(token));
+  persistAdminSessions();
   res.json({ ok: true });
 });
 
